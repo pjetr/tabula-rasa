@@ -1,7 +1,7 @@
 {
     "name": "Tabula Rasa",
     "description": "A new new-tab extension",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "manifest_version": 2,
     "permissions" : ["management"],
     "chrome_url_overrides" : {

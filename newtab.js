@@ -13,11 +13,21 @@ $(function() {
         }
       });
 
-      image = images[0];
-      $('body').css('background-image',`url("${image.url}")`);
-      $('.loading').fadeOut();
+      var lastIndex = parseInt(localStorage.getItem('last-index'));
+      lastIndex = (lastIndex !== null) ? lastIndex : -1;
 
-      console.info(image);
+      var index = (lastIndex + 1 ) < images.length ? lastIndex + 1 : 0; 
+      image = images[index];
+      localStorage.setItem('last-index', index);
+
+      var url = image.url;
+      if (url.match(/https?:\/\/imgur\.com/) !== null) {
+        url = url.replace(/https?:\/\/imgur\.com/, 'https://i.imgur.com');
+        url += '.jpg';
+      }
+
+      $('body').css('background-image',`url("${url}")`);
+      $('.loading').fadeOut();
 
       $('.image-container>.title').text(image.title).attr('href', `https://reddit.com${image.permalink}`).attr('target', `_BLANK`);
       $('.image-container>.author').text(`/u/${image.author}`);
@@ -32,5 +42,4 @@ $(function() {
       $('.quote-container>.author').text(quote.author);
       $('.quote-container').fadeIn();
     });
-
 });
