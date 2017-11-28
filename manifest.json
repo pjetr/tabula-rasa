@@ -1,10 +1,10 @@
 {
     "name": "Tabula Rasa",
-    "description": "A new new-tab extension",
+    "description": "A Chrome new-tab override application",
     "version": "1.0.0",
     "manifest_version": 2,
     "permissions" : ["management"],
     "chrome_url_overrides" : {
-        "newtab": "newtab.html"
+        "newtab": "dist/index.html"
     }
  }

@@ -1,0 +1,10 @@
+body {
+  background: #000;
+  background-position: center;
+  font-family: Calibri,Candara,Segoe,Segoe UI,Optima,Arial,sans-serif; 
+}
+
+.container {
+  position: absolute;
+  padding: 15px;
+}
