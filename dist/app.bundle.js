@@ -2105,9 +2105,13 @@ var _image = __webpack_require__(61);
 
 var _image2 = _interopRequireDefault(_image);
 
-var _quote3 = __webpack_require__(68);
+var _quote3 = __webpack_require__(69);
 
 var _quote4 = _interopRequireDefault(_quote3);
+
+var _todos = __webpack_require__(72);
+
+var _todos2 = _interopRequireDefault(_todos);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -2117,8 +2121,10 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-__webpack_require__(71);
-__webpack_require__(73);
+__webpack_require__(78);
+__webpack_require__(80);
+
+var fallback = __webpack_require__(67);
 
 var Application = function (_React$Component) {
   _inherits(Application, _React$Component);
@@ -2130,34 +2136,27 @@ var Application = function (_React$Component) {
 
     _this.state = {
       loading: true,
-      image: null
+      image: {
+        url: fallback,
+        domain: 'local',
+        title: 'Sunset, crashing waves, and solitude on the Washington coast [OC][3000x2000]',
+        author: 'Protophobic',
+        permalink: 'https://www.reddit.com/r/EarthPorn/comments/7g1ixs/sunset_crashing_waves_and_solitude_on_the/'
+      }
     };
 
-    _reddit2.default.getImages().then(function (result) {
-      var images = result.data.data.children.map(function (child) {
-        return {
-          author: child.data.author,
-          title: child.data.title,
-          url: child.data.url,
-          permalink: child.data.permalink,
-          domain: child.data.domain
-        };
-      }).filter(function (child) {
-        return child.domain !== 'flickr.com';
-      });
+    _reddit2.default.getImage().then(function (image) {
+      console.info(image);
+      _this.setState({ image: image });
 
-      var lastIndex = parseInt(localStorage.getItem('last-index'));
-      lastIndex = lastIndex !== null ? lastIndex : -1;
-
-      var index = lastIndex + 1 < images.length ? lastIndex + 1 : 0;
-      var image = images[index];
-      localStorage.setItem('last-index', index);
-
-      _this.setState(Object.assign(_this.state, { image: image, loading: false }));
-    });
-
-    _quote2.default.getQuote().then(function (result) {
-      _this.setState(Object.assign(_this.state, { quote: result.data.contents.quotes[0] }));
+      return _quote2.default.getQuote();
+    }).then(function (result) {
+      _this.setState({ quote: result });
+    }).catch(function (err) {
+      console.warn(err);
+      _this.setState({ error: err });
+    }).then(function () {
+      _this.setState({ loading: false });
     });
     return _this;
   }
@@ -2165,23 +2164,21 @@ var Application = function (_React$Component) {
   _createClass(Application, [{
     key: 'render',
     value: function render() {
-      if (this.state.loading) {
-        return _react2.default.createElement(_loader2.default, null);
-      }
-
       return _react2.default.createElement(
         'article',
         null,
+        _react2.default.createElement(_loader2.default, { loading: this.state.loading }),
         _react2.default.createElement(_image2.default, {
           author: this.state.image.author,
-          title: this.state.image.title,
+          domain: this.state.image.domain,
           permalink: this.state.image.permalink,
+          title: this.state.image.title,
           url: this.state.image.url
         }),
         _react2.default.createElement(_quote4.default, {
-          author: this.state.quote.author,
-          quote: this.state.quote.quote
-        })
+          quote: this.state.quote
+        }),
+        _react2.default.createElement(_todos2.default, null)
       );
     }
   }]);
@@ -19503,6 +19500,10 @@ var _axios = __webpack_require__(18);
 
 var _axios2 = _interopRequireDefault(_axios);
 
+var _localstorage = __webpack_require__(82);
+
+var _localstorage2 = _interopRequireDefault(_localstorage);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -19515,7 +19516,50 @@ var RedditService = function () {
   _createClass(RedditService, null, [{
     key: 'getImages',
     value: function getImages() {
-      return _axios2.default.get('https://www.reddit.com/r/earthporn/top.json');
+      return new Promise(function (resolve, reject) {
+        if (_localstorage2.default.lastFetch > Date.now() - 3600000) {
+          resolve(_localstorage2.default.images);
+        } else {
+          _axios2.default.get('https://www.reddit.com/r/earthporn/top.json').then(function (result) {
+            _localstorage2.default.images = result.data.data.children.map(function (child) {
+
+              var url = child.data.url;
+              if (child.data.domain === 'imgur.com') {
+                url = child.data.url.replace('imgur.com', 'i.imgur.com') + '.jpg';
+              }
+
+              return {
+                author: child.data.author,
+                title: child.data.title,
+                url: url,
+                permalink: child.data.permalink,
+                domain: child.data.domain
+              };
+            }).filter(function (child) {
+              return child.domain !== 'flickr.com';
+            });
+
+            resolve(_localstorage2.default.images);
+          });
+        }
+      });
+    }
+  }, {
+    key: 'getImage',
+    value: function getImage() {
+      return new Promise(function (resolve, reject) {
+        var index = _localstorage2.default.imageIndex;
+
+        RedditService.getImages().then(function (images) {
+          if (index >= images.length) {
+            _localstorage2.default.imageIndex = -1;
+            index = 0;
+          }
+
+          resolve(images[index]);
+          _localstorage2.default.imageIndex = index;
+        });
+      });
     }
   }]);
 
@@ -20421,6 +20465,10 @@ var _axios = __webpack_require__(18);
 
 var _axios2 = _interopRequireDefault(_axios);
 
+var _localstorage = __webpack_require__(82);
+
+var _localstorage2 = _interopRequireDefault(_localstorage);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -20433,7 +20481,19 @@ var QuoteService = function () {
   _createClass(QuoteService, null, [{
     key: 'getQuote',
     value: function getQuote() {
-      return _axios2.default.get('https://quotes.rest/qod.json');
+
+      if (_localstorage2.default.quoteSavedDate === new Date().toDateString()) {
+        return new Promise(function (resolve, reject) {
+          resolve(_localstorage2.default.quote);
+        });
+      }
+
+      return _axios2.default.get('https://quotes.rest/qod.json').then(function (result) {
+        var quote = result.data.contents.quotes[0];
+        _localstorage2.default.quote = quote;
+
+        return quote;
+      });
     }
   }]);
 
@@ -20477,6 +20537,10 @@ var Loader = function (_React$Component) {
   _createClass(Loader, [{
     key: 'render',
     value: function render() {
+      if (!this.props.loading) {
+        return null;
+      }
+
       return _react2.default.createElement(
         'div',
         { className: 'loading' },
@@ -20672,11 +20736,7 @@ var Image = function (_React$Component) {
 
     var _this = _possibleConstructorReturn(this, (Image.__proto__ || Object.getPrototypeOf(Image)).call(this, props));
 
-    var url = _this.props.url;
-
-    if (_this.props.url.match(/^https:\/\/imgur.com/) !== null) {
-      url = _this.props.url.replace(/^https:\/\/imgur.com/, 'https://i.imgur.com') + '.jpg';
-    }
+    var state = {};
 
     var dimensionsResult = props.title.match(/\[? ?(\d+) ?x ?(\d+) ?\]?/);
     var dimensions = {
@@ -20697,10 +20757,8 @@ var Image = function (_React$Component) {
       }
     }
 
-    _this.state = {
-      dimensions: dimensions,
-      url: url
-    };
+    state = Object.assign(state, { dimensions: dimensions });
+    _this.state = state;
     return _this;
   }
 
@@ -20757,7 +20815,7 @@ var Image = function (_React$Component) {
           'section',
           { className: 'image-background' },
           _react2.default.createElement('div', { style: {
-              backgroundImage: 'url(' + this.state.url + ')',
+              backgroundImage: 'url(' + this.props.url + ')',
               width: this.state.dimensions.width,
               height: this.state.dimensions.height,
               backgroundSize: this.state.dimensions.width + 'px ' + this.state.dimensions.height + 'px '
@@ -20766,10 +20824,10 @@ var Image = function (_React$Component) {
         _react2.default.createElement(
           'div',
           { className: 'image-container container' },
-          _react2.default.createElement('img', { src: __webpack_require__(67), alt: 'From Reddit:', height: '22' }),
+          _react2.default.createElement('img', { src: __webpack_require__(68), alt: 'From Reddit:', height: '22' }),
           _react2.default.createElement(
             'a',
-            { className: 'title', href: 'https://reddit.com' + this.props.permalink, target: '_BLANK' },
+            { className: 'title', href: this.props.permalink, target: '_BLANK' },
             this.props.title
           ),
           _react2.default.createElement(
@@ -20777,13 +20835,6 @@ var Image = function (_React$Component) {
             { className: 'author' },
             this.props.author
           )
-        ),
-        _react2.default.createElement(
-          'p',
-          null,
-          this.state.width,
-          ' x ',
-          this.state.height
         )
       );
     }
@@ -37990,10 +38041,16 @@ exports.push([module.i, ".image-background {\r\n  position: fixed;\r\n  z-index:
 /* 67 */
 /***/ (function(module, exports, __webpack_require__) {
 
-module.exports = __webpack_require__.p + "7cfd40e4bace2107324ab75a497ea211.svg";
+module.exports = __webpack_require__.p + "e5b3e673ee2b56010ba19f24c1e9ccf3.jpg";
 
 /***/ }),
 /* 68 */
+/***/ (function(module, exports, __webpack_require__) {
+
+module.exports = __webpack_require__.p + "7cfd40e4bace2107324ab75a497ea211.svg";
+
+/***/ }),
+/* 69 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -38013,7 +38070,7 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-__webpack_require__(69);
+__webpack_require__(70);
 
 var Quote = function (_React$Component) {
   _inherits(Quote, _React$Component);
@@ -38027,18 +38084,22 @@ var Quote = function (_React$Component) {
   _createClass(Quote, [{
     key: 'render',
     value: function render() {
+      if (!this.props.quote) {
+        return null;
+      }
+
       return _react2.default.createElement(
         'div',
         { className: 'quote-container container' },
         _react2.default.createElement(
           'div',
           { className: 'quote' },
-          this.props.quote
+          this.props.quote.quote
         ),
         _react2.default.createElement(
           'div',
           { className: 'author' },
-          this.props.author
+          this.props.quote.author
         )
       );
     }
@@ -38050,13 +38111,13 @@ var Quote = function (_React$Component) {
 module.exports = Quote;
 
 /***/ }),
-/* 69 */
+/* 70 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // style-loader: Adds some css to the DOM by adding a <style> tag
 
 // load the styles
-var content = __webpack_require__(70);
+var content = __webpack_require__(71);
 if(typeof content === 'string') content = [[module.i, content, '']];
 // Prepare cssTransformation
 var transform;
@@ -38081,7 +38142,7 @@ if(false) {
 }
 
 /***/ }),
-/* 70 */
+/* 71 */
 /***/ (function(module, exports, __webpack_require__) {
 
 exports = module.exports = __webpack_require__(4)(undefined);
@@ -38095,13 +38156,311 @@ exports.push([module.i, "\r\n.quote-container {\r\n  color: white;\r\n  width: 3
 
 
 /***/ }),
-/* 71 */
+/* 72 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _react = __webpack_require__(2);
+
+var _react2 = _interopRequireDefault(_react);
+
+var _todo = __webpack_require__(73);
+
+var _todo2 = _interopRequireDefault(_todo);
+
+var _todo3 = __webpack_require__(75);
+
+var _todo4 = _interopRequireDefault(_todo3);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+__webpack_require__(76);
+
+var Todos = function (_React$Component) {
+  _inherits(Todos, _React$Component);
+
+  function Todos(props) {
+    _classCallCheck(this, Todos);
+
+    var _this = _possibleConstructorReturn(this, (Todos.__proto__ || Object.getPrototypeOf(Todos)).call(this, props));
+
+    _this.state = {};
+    return _this;
+  }
+
+  _createClass(Todos, [{
+    key: 'render',
+    value: function render() {
+      return _react2.default.createElement(
+        'article',
+        { className: 'todos container' },
+        _react2.default.createElement(
+          'h1',
+          null,
+          'todos'
+        )
+      );
+    }
+  }]);
+
+  return Todos;
+}(_react2.default.Component);
+
+module.exports = Todos;
+
+/***/ }),
+/* 73 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _uid = __webpack_require__(74);
+
+var _uid2 = _interopRequireDefault(_uid);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var TodoService = function () {
+  function TodoService() {
+    _classCallCheck(this, TodoService);
+  }
+
+  _createClass(TodoService, null, [{
+    key: 'add',
+    value: function add(message) {
+      TodoService.lastPosition++;
+      TodoService.list = TodoService.list.concat([{
+        uid: (0, _uid2.default)(),
+        todo: message,
+        date: Date.now(),
+        completed: false,
+        position: TodoService.lastPosition
+      }]);
+    }
+  }, {
+    key: 'finish',
+    value: function finish(uid) {
+      TodoService.list = TodoService.list.map(function (todo) {
+        if (todo.uid = uid) {
+          todo.completed = true;
+        }
+
+        return todo;
+      });
+    }
+  }, {
+    key: 'remove',
+    value: function remove(uid) {
+      var removed = void 0;
+      TodoService.list = TodoService.list.filter(function (todo) {
+        // return todo.uid !== uid;
+        if (todo.uid === uid) {
+          removed = todo;
+
+          return false;
+        }
+
+        return true;
+      });
+
+      return removed;
+    }
+  }, {
+    key: 'reorder',
+    value: function reorder(uid, newPos) {
+      var item = TodoService.remove(uid);
+      item.position = newPos;
+
+      TodoService.list = TodoService.list.map(function (todo, i) {
+        var index = i < newPos ? i : i + 1;
+        todo.position = index;
+
+        return todo;
+      }).concat([item]);
+    }
+  }]);
+
+  return TodoService;
+}();
+
+Object.defineProperties(TodoService, {
+  'lastPosition': {
+    get: function get() {
+      var val = parseInt(localStorage.getItem('tabula-rasa.lastPosition'));
+      if (isNaN(val)) {
+        localStorage.setItem('tabula-rasa.lastPosition', '-1');
+
+        return -1;
+      }
+      return val;
+    },
+    set: function set(val) {
+      localStorage.setItem('tabula-rasa.lastPosition', val.toString());
+    }
+  },
+  'list': {
+    get: function get() {
+      var list = void 0;
+      try {
+        list = JSON.parse(localStorage.getItem('tabula-rasa.todos') || '[]');
+      } catch (err) {
+        list = [];
+      }
+
+      return list.sort(function (a, b) {
+        return a.position > b.position;
+      });
+    },
+    set: function set(value) {
+      localStorage.setItem('tabula-rasa.todos', JSON.stringify(value));
+    }
+  }
+});
+
+module.exports = TodoService;
+
+/***/ }),
+/* 74 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+module.exports = function uuid() {
+    var i = void 0;
+    var random = void 0;
+    var result = '';
+
+    for (i = 0; i < 32; i++) {
+        random = Math.random() * 16 | 0;
+        if (i === 8 || i === 12 || i === 16 || i === 20) {
+            result += '-';
+        }
+        result += (i === 12 ? 4 : i === 16 ? random & 3 | 8 : random).toString(16);
+    }
+
+    return result;
+};
+
+/***/ }),
+/* 75 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _react = __webpack_require__(2);
+
+var _react2 = _interopRequireDefault(_react);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var Todo = function (_React$Component) {
+  _inherits(Todo, _React$Component);
+
+  function Todo(props) {
+    _classCallCheck(this, Todo);
+
+    var _this = _possibleConstructorReturn(this, (Todo.__proto__ || Object.getPrototypeOf(Todo)).call(this, props));
+
+    _this.state = {
+      open: false
+    };
+    return _this;
+  }
+
+  _createClass(Todo, [{
+    key: 'render',
+    value: function render() {
+      return _react2.default.createElement(
+        'button',
+        null,
+        'Todo'
+      );
+    }
+  }]);
+
+  return Todo;
+}(_react2.default.Component);
+
+module.exports = Todo;
+
+/***/ }),
+/* 76 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // style-loader: Adds some css to the DOM by adding a <style> tag
 
 // load the styles
-var content = __webpack_require__(72);
+var content = __webpack_require__(77);
+if(typeof content === 'string') content = [[module.i, content, '']];
+// Prepare cssTransformation
+var transform;
+
+var options = {"hmr":true}
+options.transform = transform
+// add the styles to the DOM
+var update = __webpack_require__(5)(content, options);
+if(content.locals) module.exports = content.locals;
+// Hot Module Replacement
+if(false) {
+	// When the styles change, update the <style> tags
+	if(!content.locals) {
+		module.hot.accept("!!../../../node_modules/css-loader/index.js!./todos.css", function() {
+			var newContent = require("!!../../../node_modules/css-loader/index.js!./todos.css");
+			if(typeof newContent === 'string') newContent = [[module.id, newContent, '']];
+			update(newContent);
+		});
+	}
+	// When the module is disposed, remove the <style> tags
+	module.hot.dispose(function() { update(); });
+}
+
+/***/ }),
+/* 77 */
+/***/ (function(module, exports, __webpack_require__) {
+
+exports = module.exports = __webpack_require__(4)(undefined);
+// imports
+
+
+// module
+exports.push([module.i, ".todos {\r\n  background-color: rgba(255, 255, 255, .5);\r\n}", ""]);
+
+// exports
+
+
+/***/ }),
+/* 78 */
+/***/ (function(module, exports, __webpack_require__) {
+
+// style-loader: Adds some css to the DOM by adding a <style> tag
+
+// load the styles
+var content = __webpack_require__(79);
 if(typeof content === 'string') content = [[module.i, content, '']];
 // Prepare cssTransformation
 var transform;
@@ -38126,7 +38485,7 @@ if(false) {
 }
 
 /***/ }),
-/* 72 */
+/* 79 */
 /***/ (function(module, exports, __webpack_require__) {
 
 exports = module.exports = __webpack_require__(4)(undefined);
@@ -38140,13 +38499,13 @@ exports.push([module.i, "/*! normalize.css v7.0.0 | MIT License | github.com/nec
 
 
 /***/ }),
-/* 73 */
+/* 80 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // style-loader: Adds some css to the DOM by adding a <style> tag
 
 // load the styles
-var content = __webpack_require__(74);
+var content = __webpack_require__(81);
 if(typeof content === 'string') content = [[module.i, content, '']];
 // Prepare cssTransformation
 var transform;
@@ -38171,7 +38530,7 @@ if(false) {
 }
 
 /***/ }),
-/* 74 */
+/* 81 */
 /***/ (function(module, exports, __webpack_require__) {
 
 exports = module.exports = __webpack_require__(4)(undefined);
@@ -38183,6 +38542,104 @@ exports.push([module.i, "body {\r\n  background: #000;\r\n  background-position:
 
 // exports
 
+
+/***/ }),
+/* 82 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var LocalStorageService = function () {
+  function LocalStorageService() {
+    _classCallCheck(this, LocalStorageService);
+  }
+
+  _createClass(LocalStorageService, null, [{
+    key: 'PREFIX',
+    get: function get() {
+      return 'tabula_rasa_';
+    }
+  }, {
+    key: 'QOD',
+    get: function get() {
+      return LocalStorageService.PREFIX + 'qod';
+    }
+  }, {
+    key: 'QOD_DATE',
+    get: function get() {
+      return LocalStorageService.PREFIX + 'qod_date';
+    }
+  }, {
+    key: 'FETCH_TIME',
+    get: function get() {
+      return LocalStorageService.PREFIX + 'fetch_time';
+    }
+  }, {
+    key: 'IMAGES',
+    get: function get() {
+      return LocalStorageService.PREFIX + 'images';
+    }
+  }, {
+    key: 'IMAGE_INDEX',
+    get: function get() {
+      return LocalStorageService.PREFIX + 'image_index';
+    }
+  }, {
+    key: 'quoteSavedDate',
+    get: function get() {
+      return localStorage.getItem(LocalStorageService.QOD_DATE);
+    }
+  }, {
+    key: 'quote',
+    get: function get() {
+      return JSON.parse(localStorage.getItem(LocalStorageService.QOD));
+    },
+    set: function set(quote) {
+      localStorage.setItem(LocalStorageService.QOD_DATE, new Date().toDateString());
+
+      localStorage.setItem(LocalStorageService.QOD, JSON.stringify(quote));
+    }
+  }, {
+    key: 'lastFetch',
+    get: function get() {
+      return parseInt(localStorage.getItem(LocalStorageService.FETCH_TIME) || 0);
+    },
+    set: function set(value) {
+      localStorage.setItem(LocalStorageService.FETCH_TIME, value);
+    }
+  }, {
+    key: 'images',
+    get: function get() {
+      return JSON.parse(localStorage.getItem(LocalStorageService.IMAGES));
+    },
+    set: function set(images) {
+      LocalStorageService.lastFetch = Date.now();
+
+      localStorage.setItem(LocalStorageService.IMAGES, JSON.stringify(images));
+    }
+  }, {
+    key: 'imageIndex',
+    get: function get() {
+      return parseInt(localStorage.getItem(LocalStorageService.IMAGE_INDEX) || -1) + 1;
+    },
+    set: function set(index) {
+      localStorage.setItem(LocalStorageService.IMAGE_INDEX, index);
+    }
+  }]);
+
+  return LocalStorageService;
+}();
+
+exports.default = LocalStorageService;
 
 /***/ })
 /******/ ]);

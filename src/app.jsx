@@ -10,6 +10,9 @@ import QuoteService from './services/quote';
 import Loader from './components/loader/loader.jsx';
 import Image from './components/image/image.jsx';
 import Quote from './components/quote/quote.jsx';
+import Todos from './components/todos/todos.jsx';
+
+const fallback = require('./assets/fallback.jpg');
 
 class Application extends React.Component {
 
@@ -18,53 +21,48 @@ class Application extends React.Component {
 
     this.state = {
       loading: true,
-      image: null,
+      image: {
+        url: fallback,
+        domain: 'local',
+        title: 'Sunset, crashing waves, and solitude on the Washington coast [OC][3000x2000]',
+        author: 'Protophobic',
+        permalink: 'https://www.reddit.com/r/EarthPorn/comments/7g1ixs/sunset_crashing_waves_and_solitude_on_the/',
+      },
     };
 
-    RedditService.getImages().then((result) => {
-      var images = result.data.data.children.map(child => {
-        return {
-          author: child.data.author,
-          title: child.data.title,
-          url: child.data.url,
-          permalink: child.data.permalink,
-          domain: child.data.domain,
-        }
-      }).filter((child) => { return child.domain !== 'flickr.com'; });
-
-      var lastIndex = parseInt(localStorage.getItem('last-index'));
-      lastIndex = (lastIndex !== null) ? lastIndex : -1;
-
-      var index = (lastIndex + 1 ) < images.length ? lastIndex + 1 : 0; 
-      let image = images[index];
-      localStorage.setItem('last-index', index);
-
-      this.setState(Object.assign(this.state, { image: image, loading: false }));
-    });
-
-    QuoteService.getQuote().then((result) => {
-      this.setState(Object.assign(this.state, { quote: result.data.contents.quotes[0] }));
+    RedditService.getImage()
+    .then((image) => {
+      console.info(image);
+      this.setState({ image: image });
+      
+      return QuoteService.getQuote();
+    })
+    .then((result) => {
+      this.setState({ quote: result });
+    })
+    .catch( (err) => {
+      console.warn(err);
+      this.setState({ error: err });
+    })
+    .then(() => {
+      this.setState({ loading: false });
     });
   }
   render() {
-    if (this.state.loading) {
-      return (
-        <Loader />
-      );
-    }
-    
     return (
       <article>
+        <Loader loading={this.state.loading} />
         <Image 
-          author={this.state.image.author} 
-          title={this.state.image.title}
+          author={this.state.image.author}
+          domain={this.state.image.domain}
           permalink={this.state.image.permalink}
+          title={this.state.image.title}
           url={this.state.image.url}
         />
         <Quote
-          author={this.state.quote.author}
-          quote={this.state.quote.quote}
+          quote={this.state.quote}
         />
+        <Todos />
       </article>
     );
   }

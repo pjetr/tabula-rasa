@@ -8,12 +8,7 @@ class Image extends React.Component {
   constructor(props) {
     super(props);
 
-    let url = this.props.url;
-
-    if (this.props.url.match(/^https:\/\/imgur.com/) !== null) {
-      url = this.props.url.replace(/^https:\/\/imgur.com/, 'https://i.imgur.com') + '.jpg'
-    }
-
+    let state = {};
 
     let dimensionsResult = props.title.match(/\[? ?(\d+) ?x ?(\d+) ?\]?/);
     let dimensions = {
@@ -34,10 +29,8 @@ class Image extends React.Component {
       }
     }
 
-    this.state= {
-      dimensions: dimensions,
-      url: url,
-    };
+    state = Object.assign(state, {dimensions: dimensions});
+    this.state = state;
   }
 
   updateDimensions() {
@@ -73,7 +66,7 @@ class Image extends React.Component {
       <article>
         <section className="image-background">
           <div style={{
-            backgroundImage: `url(${this.state.url})`, 
+            backgroundImage: `url(${this.props.url})`, 
             width: this.state.dimensions.width, 
             height: this.state.dimensions.height,
             backgroundSize: this.state.dimensions.width + 'px ' + this.state.dimensions.height + 'px ',
@@ -81,10 +74,9 @@ class Image extends React.Component {
         </section>
         <div className="image-container container">
           <img src={require('../../assets/reddit.svg')} alt="From Reddit:" height="22" />
-          <a className="title" href={'https://reddit.com'+this.props.permalink} target="_BLANK">{this.props.title}</a>
+          <a className="title" href={this.props.permalink} target="_BLANK">{this.props.title}</a>
           <div className="author">{this.props.author}</div>
         </div>
-        <p>{this.state.width} x {this.state.height}</p>
       </article>
       );
   }
